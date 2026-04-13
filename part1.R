@@ -25,14 +25,10 @@ library(GGally)
 library(kableExtra)
 
 #define stocks
-stock <- tidyquant::tq_get(c("AAPL","MSFT","TSLA","AMZN"), 
-                           get = "stock.prices" ,from="2010-06-29", to="2022-06-29") %>% 
-  mutate(symbol = case_when(
-    symbol == "AAPL" ~ "Apple",
-    symbol == "MSFT" ~ "Microsoft",
-    symbol == "TSLA" ~ "Tesla",
-    symbol == "AMZN" ~ "Amazon"
-  )) %>% 
+stock <- tidyquant::tq_get(c("BTC-USD", "HOOD", "AMD",  "PLTR", "RKLB",
+                             "IONQ",    "ACHR", "NU",   "SE",   "KWEB",
+                             "GLD",     "CCJ",  "CRSP", "NEE",  "MELI", "SOL-USD"), 
+                           get = "stock.prices" ,from="2015-01-01", to="2024-12-31") %>% 
   mutate(date = as_date(date)) %>% 
   as_tsibble(index = date,key = symbol) %>% 
   group_by_key() %>% 
