@@ -1,0 +1,37 @@
+---
+title: "Part1 - Yuanchen Ding"
+output: pdf_document
+date: "2026-04-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Part I – Time Series Dynamics, Returns and Stylized Facts
+
+## (a) Dynamics of Financial Time Series
+
+This study uses daily closing prices of three individual stocks (e.g. "BTC-USD", "HOOD", "AMD", "PLTR", "RKLB", "IONQ", "ACHR", "NU", "SE", "KWEB", "GLD", "CCJ", "CRSP", "NEE", "MELI", "SOL-USD") from January 2015 to December 2024, obtained from Yahoo Finance (finance.yahoo.com). The dataset is cleaned to exclude non-trading days and adjusted for dividends and stock splits. Visual inspection of price dynamics reveals long‑term upward trends interrupted by sharp drops and high‑volatility episodes. Elevated volatility is observed during: Global market stress (e.g., 2020 pandemic crash, 2022–2023 monetary tightening cycles) Major macroeconomic announcements (inflation, Fed policy, GDP releases) Company earnings releases and sector news shocks Geopolitical tensions and liquidity events Key events driving price behavior include central bank rate decisions, quarterly earnings, fiscal stimulus, and sector regulatory changes.
+
+## 1(b) Price Time Series Plot
+
+```{r plot-rtn, fig.height=8, fig.width=12, echo=FALSE}
+stock %>% autoplot(rtn) + facet_grid(vars(symbol), scales = free_y) + theme(legend.position = none, axis.text = element_text(size = 8), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8))
+```
+
+```{r all_plots, fig.height=20, fig.width=14, echo=FALSE, message=FALSE, warning=FALSE}
+# 价格图
+p1 <- stock %>% 
+  autoplot(close) +
+  facet_grid(vars(symbol), scale = free_y) +
+  theme_minimal() +
+  theme(
+    legend.position = none,
+    axis.text = element_text(size=8),
+    axis.title.x = element_text(size=10),
+    axis.title.y = element_text(size=10),
+    strip.text = element_text(size=10, face=bold)
+  ) +
+  labs(title = "Daily Closing Prices", x = "Date", y = "Price")
+```
