@@ -1,0 +1,700 @@
+---
+title: "Part 2"
+author: "Davide Onorio"
+date: "2026-04-13"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    latex_engine: xelatex
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{float}
+  - \usepackage{amsmath}
+  - \usepackage{setspace}
+  - \onehalfspacing
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo      = FALSE,
+  warning   = FALSE,
+  message   = FALSE,
+  fig.pos   = "H",
+  fig.align = "center",
+  fig.width  = 8,
+  fig.height = 5
+)
+
+library(tidyquant)
+library(tidyverse)
+library(forecast)
+library(lmtest)
+library(sandwich)
+library(moments)
+library(lubridate)
+library(knitr)
+library(kableExtra)
+```
+
+\newpage
+
+# Part II
+
+## Introduction
+
+Can financial markets be beaten using only the information embedded in
+past prices? Economists and practitioners have been asking this question since 
+at least the 1960s, and it remains as relevant today as ever, particularly 
+given the rise of algorithmic trading, machine learning, and more exotic
+assets like cryptocurrencies that operate outside traditional market
+microstructures.
+
+The theoretical foundation for answering this question is the
+\textbf{Efficient Market Hypothesis (EMH)}, formalised by Fama in 1970,
+provides a theoretical basis for answering this question by stating that 
+prices always fully reflect available information.
+Under its weakest form -- \textit{weak-form efficiency} -- the relevant
+information set consists solely of the history of past prices.  If this holds 
+true, no investor can systematically profit from studying price charts or 
+return patterns because all information from the past is already priced in.
+
+Formally, weak-form efficiency is closely linked to the concept of a
+\textbf{martingale}: a stochastic process in which the best forecast of
+tomorrow's price, given all past prices, is simply today's price:
+$$\mathbb{E}[p_{t+1} \mid p_t, p_{t-1}, \ldots] = p_t.$$
+This implies that expected price changes are zero and, crucially, that
+past returns carry no predictive power over future returns. The random
+walk is a special case of this idea, and three progressively relaxed
+versions are considered in this analysis:
+
+\begin{itemize}
+  \item \textbf{RW1}: price increments are i.i.d. -- the strictest assumption,
+        implying both zero autocorrelation and identical distributions over time.
+  \item \textbf{RW2}: increments are independent but not necessarily identically
+        distributed, accommodating time-varying volatility (heteroscedasticity).
+  \item \textbf{RW3}: increments are merely uncorrelated -- the weakest and most
+        empirically relevant assumption for financial returns.
+\end{itemize}
+
+## Data - Asset Selection
+
+The dataset consists of \textbf{16 financial assets} retrieved from
+Yahoo Finance via the \texttt{tidyquant} package, covering the period
+\textbf{January 2015 to December 2024}. Rather than restricting the
+analysis to a standard universe of large-cap US equities -- where
+efficiency is most expected and most studied -- the basket was
+deliberately constructed to be heterogeneous across four dimensions:
+\textit{asset class} (equities, cryptocurrencies, ETFs, commodities),
+\textit{geography} (US, Latin America, South-East Asia, China),
+\textit{sector} (semiconductors, biotech, clean energy, fintech, space,
+quantum computing), and \textit{risk profile} (from defensive assets
+like GLD and NEE to highly speculative ones like IONQ, ACHR, and the
+two cryptocurrencies).
+
+This diversity is intentional. Cryptocurrencies trade continuously
+outside traditional exchange infrastructure and attract a largely
+retail investor base; emerging market assets like NU, MELI, SE and
+KWEB operate under different regulatory and liquidity conditions; and
+speculative growth stocks vary enormously in analyst coverage and
+institutional participation. If the EMH holds universally, it should
+hold across all of these asset types -- not just in the most liquid
+and well-arbitraged corners of the market. Conversely, finding
+predictability in specific segments would itself be informative,
+pointing to where efficiency is most fragile.
+
+## ARMA Analysis and Martingale Hypothesis
+
+### Theoretical Framework
+
+A natural starting point for assessing return predictability is to ask
+whether the history of past returns contains any linear information about
+future returns. The \textbf{Autoregressive Moving Average (ARMA)} class
+of models provides a flexible and parsimonious framework for capturing
+such dynamics. An ARMA($p$,$q$) model expresses the current return as a
+linear function of its own past values and past forecast errors:
+
+$$r_t = c + \sum_{i=1}^{p} \phi_i r_{t-i} + \sum_{j=1}^{q} \theta_j
+\varepsilon_{t-j} + \varepsilon_t, \qquad \varepsilon_t \sim
+\text{WN}(0, \sigma^2)$$
+
+where $\phi_1, \ldots, \phi_p$ are the autoregressive coefficients,
+$\theta_1, \ldots, \theta_q$ are the moving average coefficients, and
+$\varepsilon_t$ is a white noise error term. The two special cases are
+the pure \textbf{AR($p$)} model ($q = 0$), which relates current returns
+to $p$ of their own lags, and the pure \textbf{MA($q$)} model ($p = 0$),
+which relates current returns to $q$ past shocks. The most restrictive
+case, \textbf{ARMA(0,0)}, implies that returns are simply white noise,
+no past information is relevant, and the series is inherently
+unpredictable from its own history.
+
+The connection to market efficiency is direct. Under the
+\textbf{martingale hypothesis}, the conditional expectation of returns
+given all past information equals the unconditional mean:
+$$\mathbb{E}[r_t \mid r_{t-1}, r_{t-2}, \ldots] = \mathbb{E}[r_t]$$
+This is equivalent to saying that all autoregressive and moving average
+coefficients in the ARMA representation are jointly zero -- i.e. the
+true model is ARMA(0,0). Any statistically significant ARMA structure
+would therefore constitute evidence against the martingale and, by
+extension, against weak-form efficiency.
+
+### Model Selection: The Hyndman--Khandakar Algorithm
+
+Rather than testing a pre-specified model, we let the data determine the
+appropriate ARMA order using the \textbf{Hyndman--Khandakar algorithm}
+(Hyndman and Khandakar, 2008), implemented via \texttt{auto.arima()} in
+R. The algorithm searches over ARMA($p$,$q$) specifications and selects
+the model that minimises the Akaike Information Criterion (AIC),
+penalising complexity to avoid overfitting. Since log-returns are
+stationary by construction, the differencing order is fixed at $d = 0$.
+The selected model takes the form:
+
+$$r_t = c + \phi_1 r_{t-1} + \cdots + \phi_p r_{t-p} +
+\theta_1 \varepsilon_{t-1} + \cdots + \theta_q \varepsilon_{t-q} +
+\varepsilon_t$$
+
+where $\phi_1, \ldots, \phi_p$ are the autoregressive coefficients,
+$\theta_1, \ldots, \theta_q$ are the moving average coefficients, and
+$\varepsilon_t$ is white noise. The auto-selected model is then
+benchmarked against two simpler alternatives -- AR(1) and MA(1) -- to
+assess whether the added complexity is warranted.
+
+Residual adequacy is evaluated using the \textbf{Ljung--Box test}, which
+tests the joint null hypothesis that the first $K$ autocorrelations of
+the residuals are all zero. A p-value above 0.05 confirms that the
+residuals behave as white noise and that the model has captured all
+linear dependence in the series.
+
+### Results
+
+```{r arma-results}
+results <- data.frame(
+  Ticker     = c("BTC-USD","AMD","KWEB","GLD","CCJ","NEE","MELI","CRSP",
+                 "SE","SOL-USD","PLTR","RKLB","ACHR","IONQ","HOOD","NU"),
+  Best_Model = c("ARMA(1,0)","ARMA(3,0)","ARMA(0,3)","ARMA(2,3)","ARMA(0,0)",
+                 "ARMA(2,2)","ARMA(0,0)","ARMA(2,3)","ARMA(0,0)","ARMA(3,1)",
+                 "ARMA(2,2)","ARMA(0,0)","ARMA(1,0)","ARMA(0,0)","ARMA(2,0)",
+                 "ARMA(2,2)"),
+  AIC_Auto   = c(-13804.67,-9534.55,-11468.38,-16610.74,-10883.40,-13897.43,
+                 -10452.75,-7391.45,-6469.20,-4419.83,-3651.47,-3488.83,
+                 -3162.51,-2891.94,-2882.06,-2764.72),
+  AIC_AR1    = c(-13804.67,-9529.48,-11464.63,-16602.23,-10880.69,-13859.88,
+                 -10450.78,-7377.95,-6467.57,-4416.18,-3634.33,-3485.59,
+                 -3160.51,-2888.62,-2877.67,-2745.66),
+  AIC_MA1    = c(-13804.61,-9529.01,-11464.69,-16602.27,-10880.68,-13859.41,
+                 -10450.78,-7377.96,-6467.51,-4416.02,-3633.85,-3485.59,
+                 -3160.43,-2888.62,-2877.68,-2745.69),
+  LB_pvalue  = c(0.0548,0.8275,0.7562,0.7450,0.5317,0.8086,0.0036,0.7486,
+                 0.6309,0.3465,0.0366,0.7863,0.2719,0.1779,0.9020,0.1675),
+  WhiteNoise = c("Yes","Yes","Yes","Yes","Yes","Yes","No","Yes","Yes","Yes",
+                 "No","Yes","Yes","Yes","Yes","Yes")
+)
+
+kable(results, booktabs = TRUE,
+      caption = "\\label{tab:arma}ARMA Model Selection and Residual Diagnostics",
+      col.names = c("Ticker","Best Model","AIC Auto","AIC AR(1)",
+                    "AIC MA(1)","LB p-value","White Noise")) %>%
+  kable_styling(latex_options = c("hold_position","striped","scale_down"),
+                font_size = 9) %>%
+  footnote(general = "LB p-value refers to the Ljung-Box test at lag 10.
+           White Noise = Yes if p-value $>$ 0.05.",
+           escape = FALSE)
+```
+
+Table \ref{tab:arma} reports the selected ARMA model for each asset,
+alongside AIC comparisons with the AR(1) and MA(1) benchmarks and the
+Ljung--Box test on residuals. Three broad findings emerge.
+
+First, the auto-selected model consistently outperforms both benchmarks
+on AIC across all 16 assets, confirming that the Hyndman--Khandakar
+algorithm identifies genuinely better-fitting specifications rather than
+simply adding noise. The AIC improvements are particularly large for
+NEE ($\Delta \text{AIC} \approx 37$), GLD ($\Delta \approx 8$), and
+CRSP ($\Delta \approx 13$), suggesting that these assets have
+meaningful ARMA structure that a simple AR(1) or MA(1) would miss.
+
+Second, the degree of complexity varies substantially across assets.
+Four assets -- CCJ, RKLB, IONQ, SE, and MELI -- are best described
+by an \textbf{ARMA(0,0)}, implying that their log-returns are already
+white noise with no exploitable linear structure. At the other extreme,
+GLD and CRSP both require \textbf{ARMA(2,3)} specifications, while NEE,
+PLTR, and NU call for \textbf{ARMA(2,2)}. This is somewhat surprising:
+GLD and NEE are typically considered highly liquid and efficiently
+priced, yet their return dynamics exhibit richer autocorrelation
+patterns than most of the speculative assets in the basket.
+
+Third, and most importantly for the question of efficiency, 14 out of
+16 assets pass the Ljung--Box test with p-values well above 0.05,
+indicating that the selected models successfully absorb all linear
+dependence in the return series and leave white noise residuals. The
+two exceptions are \textbf{MELI} (p = 0.004) and \textbf{PLTR}
+(p = 0.037), both of which reject the white noise hypothesis even after
+model selection. For MELI this is particularly striking, since the
+algorithm chose an ARMA(0,0) -- meaning that despite the absence of
+identifiable linear structure, the residuals are still autocorrelated,
+pointing to some nonlinear or structural predictability that a standard
+ARMA framework cannot capture. For PLTR, the rejection is subtler but
+consistent with its relatively complex ARMA(2,2) structure and will
+reappear in the martingale test that follows.
+
+## Martingale Hypothesis Test
+
+### Theoretical Framework
+
+The ARMA analysis in the previous section identifies the best linear
+model for each return series, but does not directly test whether the
+detected structure is statistically meaningful. This is the role of the
+\textbf{martingale hypothesis test}. Under the martingale, past returns
+should carry no predictive power over future returns:
+$$\mathbb{E}[r_t \mid r_{t-1}, r_{t-2}, \ldots] = \mathbb{E}[r_t]$$
+To test this formally, we specify two competing regression models for
+each asset:
+$$\text{Restricted:} \quad r_t = c + \varepsilon_t$$
+$$\text{Unrestricted:} \quad r_t = c + \phi_1 r_{t-1} + \phi_2 r_{t-2}
++ \varepsilon_t$$
+The restricted model embodies the martingale -- returns are unpredictable
+and equal to a constant mean. The unrestricted model allows the two most
+recent lagged returns to enter as predictors. The martingale hypothesis
+is equivalent to $H_0: \phi_1 = \phi_2 = 0$, which is tested using a
+\textbf{Wald test} with heteroscedasticity-robust standard errors
+(vcovHC). Robust standard errors are essential here because financial
+returns typically exhibit time-varying volatility, which would otherwise
+invalidate standard inference. A p-value below 0.05 constitutes evidence
+against the martingale -- i.e. past returns do help predict future returns.
+
+### Results
+
+```{r martingale-results}
+martingale_results <- data.frame(
+  Ticker     = c("BTC-USD","AMD","KWEB","GLD","CCJ","NEE","MELI","CRSP",
+                 "SE","SOL-USD","PLTR","RKLB","ACHR","IONQ","HOOD","NU"),
+  F_stat     = c(0.6637,3.3106,0.5600,1.5059,0.2375,1.2383,0.2615,0.3889,
+                 0.7912,0.8096,2.8011,0.0883,0.8772,0.2564,0.8593,0.6280),
+  p_value    = c(0.5150,0.0367,0.5713,0.2220,0.7886,0.2901,0.7699,0.6779,
+                 0.4535,0.4452,0.0612,0.9155,0.4163,0.7739,0.4238,0.5339),
+  Martingale = c("Yes","No","Yes","Yes","Yes","Yes","Yes","Yes",
+                 "Yes","Yes","Yes","Yes","Yes","Yes","Yes","Yes")
+)
+
+kable(martingale_results, booktabs = TRUE,
+      caption = "\\label{tab:martingale}Wald Test -- Martingale Hypothesis",
+      col.names = c("Ticker","F-statistic","p-value","Martingale")) %>%
+  kable_styling(latex_options = c("hold_position","striped"), font_size = 9) %>%
+  footnote(general = "Martingale = Yes if p-value $>$ 0.05. Robust standard
+           errors (vcovHC) used throughout.", escape = FALSE)
+```
+
+The results in Table \ref{tab:martingale} are broadly supportive of the
+martingale hypothesis. \textbf{15 out of 16 assets} fail to reject $H_0$
+at the 5\% significance level -- knowing the last two days of returns
+provides no statistically useful information about tomorrow's return,
+precisely what weak-form efficiency predicts.
+
+The sole exception is \textbf{AMD} (F = 3.31, p = 0.037), which rejects
+the martingale at the 5\% level. This is somewhat surprising given that
+AMD is one of the most liquid and heavily covered stocks in the basket.
+One possible explanation is that over a longer sample horizon (2015--2024),
+AMD's returns reflect distinct structural regimes -- the company's near-
+bankruptcy around 2015, its subsequent turnaround, and the AI-driven rally
+from 2023 onwards -- which together generate lagged return patterns that
+a linear model can partially detect.
+
+\textbf{PLTR} also warrants attention: with p = 0.061 it sits just
+outside the 5\% threshold, suggesting borderline predictability consistent
+with its complex ARMA structure identified in the previous section.
+
+Overall, the martingale results confirm that \textbf{daily returns in
+this basket are largely unpredictable from their own history}, with AMD
+as the most notable exception over the extended sample period.
+
+## RW1: Cowles--Jones and Runs Tests
+
+### Theoretical Framework
+
+The ARMA and martingale tests in the previous section are parametric, 
+they assume a linear structure and are sensitive to the distributional
+properties of returns. The \textbf{Random Walk 1 (RW1)} hypothesis
+imposes a stricter requirement: not only should returns be uncorrelated,
+but their increments should be \textit{independently and identically
+distributed} (i.i.d.). Testing RW1 therefore calls for nonparametric
+methods that are robust to distributional assumptions.
+
+We employ two complementary tests. Both are based on the \textit{sign}
+of daily returns -- whether a return is positive or negative -- rather
+than its magnitude, making them naturally robust to outliers and
+non-normality.
+
+\textbf{The Cowles--Jones Test} (Cowles and Jones, 1937) compares the
+frequency of \textit{sequences} -- consecutive returns of the same sign
+-- against the frequency of \textit{reversals} -- consecutive returns
+of opposite sign. Define the indicator:
+$$I_t = \begin{cases} 1 & \text{if } r_t > 0 \\ 0 & \text{if } r_t
+\leq 0 \end{cases}$$
+A sequence occurs when $I_t = I_{t+1}$, and a reversal when
+$I_t \neq I_{t+1}$. The Cowles--Jones ratio is defined as:
+$$\widehat{CJ} = \frac{N_s}{N_r}$$
+where $N_s$ and $N_r$ are the number of sequences and reversals
+respectively. Under RW1 with estimated probability of a positive return
+$\hat{\pi}$, the expected ratio equals:
+$$E[\widehat{CJ}] = \frac{\pi_s}{1 - \pi_s}, \qquad \pi_s = \hat{\pi}^2
++ (1-\hat{\pi})^2$$
+and $\widehat{CJ}$ is asymptotically normally distributed, allowing
+construction of a standard $z$-test. A ratio significantly different
+from its expected value indicates that the sign of returns is
+predictable -- either trending (CJ $> E[CJ]$) or mean-reverting
+(CJ $< E[CJ]$).
+
+\textbf{The Runs Test} (Mood, 1940) counts the total number of
+\textit{runs} $N_{runs}$ in the return series, where a run is an
+uninterrupted sequence of returns with the same sign. Under RW1, the
+expected number of runs and its variance are:
+$$E[N_{runs}] = 2T\hat{\pi}(1-\hat{\pi}) + \hat{\pi}^2 +
+(1-\hat{\pi})^2$$
+$$Var[N_{runs}] = 4T\hat{\pi}(1-\hat{\pi})\left[1 - 3\hat{\pi}
+(1-\hat{\pi})\right]$$
+The test statistic, with continuity correction (Wallis and Roberts,
+1956), is:
+$$z = \frac{N_{runs} + \frac{1}{2} - 2T\hat{\pi}(1-\hat{\pi})}
+{\sqrt{Var[N_{runs}]}} \overset{a}{\sim} \mathcal{N}(0,1)$$
+Too few runs indicate positive autocorrelation (trending behaviour);
+too many runs indicate negative autocorrelation (mean reversion).
+Both tests are applied to all 16 assets and the null of RW1 is
+rejected at the 5\% significance level.
+
+### Results
+
+```{r rw1-results}
+results_rw1 <- data.frame(
+  Ticker    = c("BTC-USD","AMD","KWEB","GLD","CCJ","NEE","MELI","CRSP",
+                "SE","SOL-USD","PLTR","RKLB","ACHR","IONQ","HOOD","NU"),
+  CJ_ratio  = c(0.8790,0.9744,0.9141,0.9514,0.9901,0.9514,1.0469,0.9438,
+                1.0809,0.9597,1.0809,1.0060,1.0638,1.0304,1.1078,0.9819),
+  CJ_pvalue = c(0.0208,0.6773,0.1325,0.4127,0.8722,0.4071,0.5118,0.2897,
+                0.2022,0.4417,0.2011,0.9588,0.5821,0.6410,0.1181,0.8013),
+  CJ_RW1    = c("Reject","Fail to Reject","Fail to Reject","Fail to Reject",
+                "Fail to Reject","Fail to Reject","Fail to Reject","Fail to Reject",
+                "Fail to Reject","Fail to Reject","Fail to Reject","Fail to Reject",
+                "Fail to Reject","Fail to Reject","Fail to Reject","Fail to Reject"),
+  RT_pvalue = c(0.0129,0.6504,0.1070,0.3830,0.8468,0.3773,0.5411,0.2596,
+                0.2323,0.4171,0.2312,0.9840,0.6104,0.6687,0.1472,0.7718),
+  RT_RW1    = c("Reject","Fail to Reject","Fail to Reject","Fail to Reject",
+                "Fail to Reject","Fail to Reject","Fail to Reject","Fail to Reject",
+                "Fail to Reject","Fail to Reject","Fail to Reject","Fail to Reject",
+                "Fail to Reject","Fail to Reject","Fail to Reject","Fail to Reject")
+)
+
+kable(results_rw1, booktabs = TRUE,
+      caption = "\\label{tab:rw1}RW1 Tests: Cowles--Jones and Runs Test",
+      col.names = c("Ticker","CJ Ratio","CJ p-value","CJ Decision",
+                    "RT p-value","RT Decision")) %>%
+  kable_styling(latex_options = c("hold_position","striped","scale_down"),
+                font_size = 9) %>%
+  footnote(general = "RW1 rejected at 5\\\\% significance level.",
+           escape = FALSE)
+```
+
+Table \ref{tab:rw1} presents the results of both tests across all 16
+assets. The overall picture is one of broad consistency with the RW1
+hypothesis -- \textbf{15 out of 16 assets fail to reject RW1} under
+both the Cowles--Jones and runs tests simultaneously.
+
+The sole and striking exception is \textbf{BTC-USD}, which rejects RW1
+under both tests (CJ p = 0.021, RT p = 0.013). The CJ ratio of 0.879
+is below 1, indicating that \textit{reversals occur more frequently
+than sequences} in Bitcoin's daily returns -- positive days tend to be
+followed by negative days more often than randomness would predict.
+This mean-reverting pattern is consistent with the well-documented
+overreaction behaviour in cryptocurrency markets, where retail-driven
+sentiment swings cause prices to overshoot and then correct. It is also
+noteworthy that this result stands in contrast to the martingale test,
+where BTC failed to reject $H_0$ -- a reminder that the two tests
+capture different aspects of predictability, and that nonparametric
+sign-based tests can detect patterns that linear regression-based tests
+miss.
+
+Taken together, the RW1 results reinforce the conclusion from the ARMA
+and martingale analysis: \textbf{returns in this basket are largely
+consistent with the random walk}, with Bitcoin as the most persistent
+anomaly and AMD and PLTR flagged by complementary tests as warranting
+closer attention.
+
+## RW2: Market Anomalies
+
+### Theoretical Framework
+
+The \textbf{Random Walk 2 (RW2)} hypothesis relaxes RW1 by allowing
+return increments to be non-identically distributed -- accommodating,
+for instance, time-varying volatility -- while maintaining the
+assumption of \textit{independence}. Testing RW2 therefore shifts focus
+from autocorrelation to a different type of predictability: systematic
+calendar-based patterns and cross-sectional return regularities known
+as \textbf{market anomalies}. If returns are genuinely independent,
+no such patterns should exist. We test three anomalies: the
+day-of-the-week effect, the January effect, and the winner--loser
+effect.
+
+\textbf{The Day-of-the-Week Effect} posits that returns differ
+systematically across weekdays -- most notably the so-called
+\textit{weekend effect}, whereby Monday returns tend to be lower than
+those of other days. If true, this would imply a predictable seasonal
+pattern in returns, directly violating independence. We test this using
+the same Wald test framework as the martingale test: a restricted model
+$r_t = c + \varepsilon_t$ is compared against an unrestricted model
+that includes weekday dummies:
+$$r_t = c + \sum_{d=2}^{5} \beta_d \mathbf{1}[\text{weekday}_t = d]
++ \varepsilon_t$$
+The null hypothesis $H_0: \beta_2 = \cdots = \beta_5 = 0$ is tested
+with a Wald test using heteroscedasticity-robust standard errors. A
+rejection would indicate that at least one weekday generates
+systematically different returns.
+
+\textbf{The January Effect} refers to the empirical regularity,
+first documented in the 1970s, whereby stock returns tend to be
+abnormally high in January -- particularly for small-cap stocks.
+The standard explanation invokes tax-loss selling in December followed
+by reinvestment in January. We test this with the same Wald framework,
+comparing returns in January against returns in all other months:
+$$r_t = c + \beta \mathbf{1}[\text{month}_t = \text{January}] +
+\varepsilon_t$$
+Under the null $H_0: \beta = 0$, January returns are no different
+from the rest of the year.
+
+\textbf{The Winner--Loser Effect}, documented by De Bondt and Thaler
+(1985), tests for investor overreaction at a longer horizon. The
+hypothesis is that investors systematically overreact to news,
+pushing past winners too high and past losers too low. Over a
+subsequent period, prices should correct: losers should outperform
+and winners should underperform. Following their methodology, stocks
+are ranked by cumulative excess return over a \textbf{formation
+period} of 12 quarters (3 years), and winner and loser portfolios of
+10 stocks each are constructed. Performance is then tracked over the
+following \textbf{12-quarter test period} by computing the Average
+Cumulative Abnormal Return (ACAR) relative to the S\&P 500 as the
+market benchmark. The overreaction hypothesis predicts:
+$$ACAR^L_t - ACAR^W_t > 0 \quad \forall t$$
+i.e. the loser portfolio should outperform the winner portfolio
+throughout the entire test window. To ensure sufficient cross-sectional
+variation, the asset universe is expanded to \textbf{66 tickers}
+spanning finance, healthcare, energy, consumer staples, industrials,
+real estate, materials, utilities, and the original 16 assets, covering
+a sample period from \textbf{January 2015 to December 2024}. This
+broader universe captures multiple market cycles and a wide range of
+industries, making the test more robust and comparable in spirit to
+the original De Bondt and Thaler study.
+
+### Day-of-the-Week Effect
+
+```{r dow-results}
+dow_results <- data.frame(
+  Ticker  = c("BTC-USD","AMD","KWEB","GLD","CCJ","NEE","MELI","CRSP",
+               "SE","SOL-USD","PLTR","RKLB","ACHR","IONQ","HOOD","NU"),
+  F_stat  = c(0.9387,1.3669,1.5851,0.5050,0.9108,0.9095,0.5203,1.3366,
+               1.0173,0.6100,0.3815,0.8112,0.2103,0.6724,0.7683,0.1652),
+  p_value = c(0.4658,0.2429,0.1755,0.7321,0.4566,0.4574,0.7208,0.2540,
+               0.3970,0.7226,0.8219,0.5181,0.9328,0.6112,0.5460,0.9560),
+  DOW     = rep("No Effect", 16)
+)
+
+kable(dow_results, booktabs = TRUE,
+      caption = "\\label{tab:dow}Wald Test -- Day-of-the-Week Effect",
+      col.names = c("Ticker","F-statistic","p-value","Result")) %>%
+  kable_styling(latex_options = c("hold_position","striped","scale_down"),
+                font_size = 9) %>%
+  footnote(general = "Effect present if p-value $<$ 0.05. Robust standard
+           errors (vcovHC) used throughout.", escape = FALSE)
+```
+
+Table \ref{tab:dow} shows no evidence of a day-of-the-week effect
+across any of the 16 assets. All F-statistics are small and all
+p-values comfortably exceed the 5\% threshold -- several are above
+0.80. This result holds uniformly across very different asset types:
+cryptocurrencies that trade on weekends, speculative growth stocks,
+defensive commodities, and emerging market equities all fail to show
+any systematic weekday pattern. The weekend effect, one of the most
+cited anomalies in the early market efficiency literature, finds no
+support in this modern, diversified basket.
+
+### January Effect
+
+```{r jan-results}
+jan_results <- data.frame(
+  Ticker     = c("BTC-USD","AMD","KWEB","GLD","CCJ","NEE","MELI","CRSP",
+                 "SE","SOL-USD","PLTR","RKLB","ACHR","IONQ","HOOD","NU"),
+  Mean_Jan   = c(-0.1193,0.0890,0.1630,0.1396,0.0565,-0.0016,0.4388,
+                  0.3000,0.0619,1.0765,0.3058,-0.1685,-0.5309,-0.3342,
+                 -0.2492,-0.1117),
+  Mean_Rest  = c(0.1814,0.1577,-0.0121,0.0201,0.0493,0.0540,0.0754,
+                 0.0274,0.1081,0.2471,0.1873,0.1189,0.0465,0.1813,
+                 0.0309,0.0140),
+  p_value    = c(0.2670,0.8184,0.3186,0.0536,0.9743,0.6626,0.0934,
+                 0.4675,0.8847,0.2699,0.8195,0.4905,0.2866,0.2997,
+                 0.5881,0.8055),
+  January    = rep("No Effect", 16)
+)
+
+kable(jan_results, booktabs = TRUE,
+      caption = "\\label{tab:jan}Wald Test -- January Effect",
+      col.names = c("Ticker","Mean Jan (\\%)","Mean Rest (\\%)",
+                    "p-value","Result")) %>%
+  kable_styling(latex_options = c("hold_position","striped","scale_down"),
+                font_size = 9) %>%
+  footnote(general = "Mean returns expressed as daily averages in percentage
+           terms. Effect present if p-value $<$ 0.05.", escape = FALSE)
+```
+
+Table \ref{tab:jan} finds no statistically significant January effect
+for any asset in the basket. No p-value falls below the 5\% threshold,
+and the direction of the January premium is far from consistent: while
+SOL, MELI, CRSP and PLTR show higher average returns in January,
+assets like BTC, ACHR, IONQ and HOOD actually perform \textit{worse}
+in January than in the rest of the year. Two assets approach
+borderline significance -- \textbf{GLD} (p = 0.054) and \textbf{MELI}
+(p = 0.093) -- but neither clears the conventional threshold. The
+absence of a directional pattern combined with the lack of statistical
+significance provides no support for the January effect in this
+sample, suggesting that any seasonal regularities documented in earlier
+literature have either disappeared or never applied to this type of
+asset universe.
+
+### Winner-Loser Effect
+```{r winner-loser-plot, fig.cap="Winner--Loser Effect: ACAR over 12-quarter Test Window", out.width="80%"}
+plot_data <- data.frame(
+  time_step = rep(0:12, 2),
+  ACAR      = c(0.00, -0.08, -0.09, -0.02, -0.16, 0.08, 0.01, -0.05,
+                0.03, -0.25, -0.20, -0.29, -0.10,
+                0.00, -0.07, -0.09, -0.03, -0.02, -0.01, 0.00, -0.01,
+                -0.12, -0.15, -0.06, -0.07, 0.04),
+  category  = rep(c("Loser","Winner"), each = 13)
+)
+
+ggplot(plot_data, aes(x = time_step, y = ACAR, color = category)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("Winner" = "royalblue",
+                                "Loser"  = "firebrick")) +
+  geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
+  scale_x_continuous(breaks = 0:12) +
+  labs(
+    x     = "Quarters After Portfolio Formation",
+    y     = "Average Cumulative Abnormal Return (ACAR)",
+    color = "Portfolio"
+  ) +
+  theme_minimal(base_size = 11)
+```
+
+Figure \ref{fig:winner-loser-plot} presents results that are mixed and
+do \textbf{not cleanly support the overreaction hypothesis} of De Bondt
+and Thaler (1985). Both the winner and loser portfolios generate
+negative ACARs for most of the test window, suggesting that on average
+neither portfolio outperforms the S\&P 500 benchmark over the
+2015--2024 sample. The loser portfolio is substantially more volatile,
+swinging between brief recoveries and sharp deteriorations, and ends
+the test window at approximately $-0.10$ -- below the winner portfolio
+which finishes marginally above zero at $+0.04$.
+
+Rather than the clean loser-outperforms-winner pattern predicted by the
+overreaction hypothesis, what emerges is a picture of \textbf{persistent
+underperformance by past losers} and relative stability for past winners.
+This is consistent with a market environment where poor past performers
+continue to struggle -- a pattern more aligned with momentum than with
+mean reversion. The high volatility of the loser ACAR also suggests
+that the loser portfolio is disproportionately composed of distressed or
+high-risk assets whose fortunes are highly sensitive to market
+conditions, rather than temporarily undervalued stocks poised for
+recovery as the overreaction story would predict.
+
+Overall, the winner--loser analysis does not support the overreaction
+hypothesis in this sample. If anything, the results lean towards
+\textbf{momentum persistence}, where past winners hold their ground
+and past losers continue to underperform relative to the market.
+
+## RW3: Return Predictability under the Random Walk 3 Framework
+
+### Theoretical Framework
+
+The \textbf{Random Walk 3 (RW3)} hypothesis is the weakest of the three:
+it only requires that return increments are \textit{uncorrelated}, without
+imposing independence or identical distributions. Formally, for any
+non-zero lag $k$:
+$$Cov(r_t, r_{t-k}) = 0 \quad \forall k \neq 0$$
+This makes RW3 the most empirically relevant assumption for financial
+returns, as it accommodates the time-varying volatility and fat tails
+widely observed in practice. The natural test for RW3 is therefore
+whether any \textit{linear} autocorrelation remains in the return series
+-- precisely what the ARMA analysis and the Ljung--Box test in Section
+2.3 were designed to detect. We therefore draw directly on those results
+here rather than repeating the analysis.
+
+### Results
+
+The evidence from Section 2.3 already provides a direct test of RW3.
+Recall that the Ljung--Box test on the ARMA residuals failed to reject
+white noise for 14 out of 16 assets, with only \textbf{MELI}
+(p = 0.004) and \textbf{PLTR} (p = 0.037) showing significant residual
+autocorrelation. This means that once the modest ARMA structure is
+removed, virtually all linear dependence is accounted for -- consistent
+with RW3.
+
+To complement this, we apply the Ljung--Box test directly to the
+\textbf{raw log-returns} (without any ARMA filtering), which provides
+a cleaner and more direct test of the RW3 null:
+
+```{r rw3-results}
+# Ljung-Box on raw returns + ACF at lag 1
+library(tidyquant)
+library(tidyverse)
+library(forecast)
+library(knitr)
+library(kableExtra)
+
+tickers <- c(
+  "BTC-USD", "HOOD", "AMD",  "PLTR", "RKLB",
+  "IONQ",    "ACHR", "NU",   "SE",   "KWEB",
+  "GLD",     "CCJ",  "CRSP", "NEE",  "MELI", "SOL-USD"
+)
+
+prices <- tq_get(tickers, from = "2015-01-01", to = "2024-12-31")
+
+returns <- prices %>%
+  group_by(symbol) %>%
+  arrange(date) %>%
+  transmute(date, rtn = log(adjusted) - log(lag(adjusted))) %>%
+  na.omit() %>%
+  ungroup()
+
+rw3_results <- map_dfr(unique(returns$symbol), function(tk) {
+  rtn <- returns %>% filter(symbol == tk) %>% pull(rtn)
+  lb  <- Box.test(rtn, lag = 10, type = "Ljung-Box")
+  data.frame(
+    Ticker   = tk,
+    ACF_lag1 = round(acf(rtn, lag.max = 1, plot = FALSE)$acf[2], 4),
+    LB_stat  = round(lb$statistic, 4),
+    p_value  = round(lb$p.value, 4),
+    RW3      = ifelse(lb$p.value > 0.05, "Fail to Reject", "Reject")
+  )
+})
+
+kable(rw3_results, booktabs = TRUE,
+      caption = "\\label{tab:rw3}Ljung--Box Test on Raw Log-Returns (RW3)",
+      col.names = c("Ticker","ACF Lag 1","LB Statistic",
+                    "p-value","RW3 Decision")) %>%
+  kable_styling(latex_options = c("hold_position","striped","scale_down"),
+                font_size = 9) %>%
+  footnote(general = "Ljung--Box test at lag 10 applied to raw log-returns.
+           RW3 rejected at 5\\\\% significance level.", escape = FALSE)
+```
+
+Table \ref{tab:rw3} presents a more mixed picture than earlier tests.
+\textbf{8 out of 16 assets reject RW3} -- BTC, AMD, NEE, MELI, CRSP,
+SOL, PLTR, and NU -- while the remaining 8 fail to reject. This is a
+stronger result against the random walk than the martingale and RW1
+tests, where only 1--2 assets showed significant predictability.
+\textbf{PLTR} is the most consistently predictable asset across all
+tests, with the highest lag-1 ACF (0.087) and LB statistic (39.57,
+p $\approx$ 0). \textbf{NEE} is the most surprising rejection, with
+an LB statistic of 68.03 despite showing no anomalies in earlier
+tests. That said, all lag-1 ACF coefficients are small in magnitude --
+rarely exceeding 0.05 -- suggesting that while autocorrelation is
+statistically detectable, it is unlikely to be economically exploitable
+after transaction costs.
