@@ -1,11 +1,11 @@
 ---
-title: "Part1 - Yuanchen Ding"
+title: "Part1"
+author: "Yuanchen Ding"
 output: pdf_document
 date: "2026-04-13"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 #Preparation
 knitr::opts_chunk$set(
@@ -33,76 +33,193 @@ library(GGally)
 library(kableExtra)
 
 #define stocks
-stock <- tidyquant::tq_get(c("BTC-USD", "HOOD", "AMD",  "PLTR", "RKLB",
-                             "IONQ",    "ACHR", "NU",   "SE",   "KWEB",
-                             "GLD",     "CCJ",  "CRSP", "NEE",  "MELI", "SOL-USD"), 
-                           get = "stock.prices" ,from="2015-01-01", to="2024-12-31") %>% 
-  mutate(date = as_date(date)) %>% 
-  as_tsibble(index = date,key = symbol) %>% 
-  group_by_key() %>% 
-  mutate(rtn = difference(log(close))) %>% #this is the log return computed
-  filter(!is.na(rtn)) %>% 
-  group_by_key() %>% 
-  mutate(trading_day = row_number()) 
+stock <- tidyquant::tq_get(
+  c("BTC-USD", "HOOD", "AMD",  "PLTR", "RKLB",
+    "IONQ",    "ACHR", "NU",   "SE",   "KWEB",
+    "GLD",     "CCJ",  "CRSP", "NEE",  "MELI", "SOL-USD"),
+  get  = "stock.prices",
+  from = "2019-01-01",
+  to   = "2024-12-31"
+) %>%
+  mutate(date = as_date(date)) %>%
+  as_tsibble(index = date, key = symbol) %>%
+  group_by_key() %>%                  
+  mutate(rtn = difference(log(close))) %>%
+  filter(!is.na(rtn)) %>%
+  mutate(trading_day = row_number())
 
-stock %>% select(symbol,date,close,rtn)
+stock %>% select(symbol, date, close, rtn)
+
 ```
 
-# Part I – Time Series Dynamics, Returns and Stylized Facts
+# 1. Time Series Dynamics, Returns and Stylized Facts
 
-## (a) Dynamics of Financial Time Series
+This section of the report discusses the dynamics, statistical properties and stylized facts of the selected financial assets based on the results computed for the period from January 2019 to December 2024.
 
-This study uses daily closing prices of three individual stocks (e.g. "BTC-USD", "HOOD", "AMD", "PLTR", "RKLB", "IONQ", "ACHR", "NU", "SE", "KWEB", "GLD", "CCJ", "CRSP", "NEE", "MELI", "SOL-USD") from January 2015 to December 2024, obtained from Yahoo Finance (finance.yahoo.com). The dataset is cleaned to exclude non-trading days and adjusted for dividends and stock splits. Visual inspection of price dynamics reveals long‑term upward trends interrupted by sharp drops and high‑volatility episodes. Elevated volatility is observed during: Global market stress (e.g., 2020 pandemic crash, 2022–2023 monetary tightening cycles) Major macroeconomic announcements (inflation, Fed policy, GDP releases) Company earnings releases and sector news shocks Geopolitical tensions and liquidity events Key events driving price behavior include central bank rate decisions, quarterly earnings, fiscal stimulus, and sector regulatory changes.
+## 1.1 Dynamics of Financial Time Series
 
-## 1(b) Price Time Series Plot
-
-### Time series
+The dataset consists of daily closing prices for a diversified set of assets, including cryptocurrencies, technology equities, ETFs and commodities. This data was obtained from Yahoo Finance and adjusted for stock splits and dividend payments.
 
 ```{r, echo=FALSE, out.width="100%"}
-knitr::include_graphics("timeseries.png")
+stock %>% 
+  autoplot(close)+facet_grid(vars(symbol), scale = "free_y")+
+  theme(legend.position="none", axis.text=element_text(size=6),
+        axis.title.x = element_text(size = 6), axis.title.y = element_text(size = 6))
+
+stock %>% 
+  autoplot(rtn)+facet_grid(vars(symbol), scale = "free_y" )+
+  theme(legend.position="none", axis.text=element_text(size=6),
+        axis.title.x = element_text(size = 6), axis.title.y = element_text(size = 6))
+
 ```
 
-### Log returns
+Looking at these price series, we notice long-term upward trends that are frequently interrupted by sharp declines and periods of high volatility. This higher volatility is notably concentrated during specific periods of global market stress, specifically the 2020 pandemic induced crash and during 2022 and 2023 with the monetary tightening cycles. The behaviour of these series is driven by macroeconomic events, such as the Federal Reserve interest rate decisions, inflation uncertainties and GDP releases. Other news related to the specific assets, such as quarterly earnings announcements and regulatory changes have significant impacts in each assets individual price trajectories.
 
-```{r, echo=FALSE, out.width="100%"}
-knitr::include_graphics("rtn.png")
-```
+Additionally, high-growth technology stocks and speculative assets, for example, Palantir Technologies (PLTR), Archer Aviation Inc (ACHR) and cryptocurrencies (BTC-USD) show stronger price fluctuations when compared with stable stocks such as gold (GLD) and NextEra Energy (NEE). Cryptocurrency series show a strong ups-and-downs dynamic, which reflects speculative trading behaviour and sensitivity to liquidity conditions.
 
-### mean
+Overall, financial prices exhibit unstable behaviour characterized by trends, jumps and clustering of volatility, which increases the interest for the analysis of returns instead of prices.
+
+## 1.2 Statistical Analysis and Stylized Facts of Log Returns
+
+The log returns were computed and analyzed as first differences of logarithmic prices, in order to identify common stylized facts in financial time series. The summary statistics for all assets reveal a significant departure from the normal distribution, displaying no visible deterministic trend.
+
+*Mean and Volatility*
 
 ```{r table_mean, echo=FALSE}
 stock %>%
-  features(rtn, list(mean = ~mean(., na.rm=TRUE), 
-                     n = ~length(.))) %>%
+  features(rtn, list(
+    mean = ~mean(., na.rm = TRUE),
+    sd   = ~sd(.,   na.rm = TRUE),
+    n    = ~length(.)
+  )) %>%
   kbl(booktabs = TRUE)
+
 ```
 
+The estimated mean returns are close to zero for most assets, which is consistent with the weak-form Efficient Market Hypothesis, suggesting limited predictability of daily returns. However, volatility differs significantly across assets; cryptocurrencies (SOL-USD) and more speculative growth stocks (IONQ) present the highest standard deviations, while gold (GDL) and utility stocks (NEE) are more stable so they show the lowest volatility.
 
-### standard deviation
-```{r table_sd, echo=FALSE}
-stock %>%
-  features(rtn, list(sd = ~sd(., na.rm=TRUE), 
-                     n = ~length(.))) %>%
-  kbl(booktabs = TRUE)
-```
+*Kurt*
 
-### skew
-```{r table_skew, echo=FALSE}
-stock %>%
-  features(rtn,list(skew =  timeSeries::colSkewness, 
-                    n = ~length(.))) %>% 
-  mutate(skew_stat =  sqrt(n)*skew/sqrt(6), 
-         p_val_skew_stat = 2*(1-pnorm(abs(skew_stat)))) %>% 
-  kbl(booktabs = TRUE)
-```
-### kurt
 ```{r table_kurt, echo=FALSE}
 stock %>%
-  features(rtn,list(kurt =  timeSeries::colKurtosis, 
-                    n = ~length(.))) %>% 
-  mutate(kurt = kurt+3,
-         kurt_stat =  sqrt(n)*kurt/sqrt(24), 
-         p_val_kurt_stat = 2*(1-pnorm(abs(kurt_stat)))) %>% 
+  features(rtn, list(kurt = timeSeries::colKurtosis,
+                     n    = ~length(.))) %>%
+  mutate(
+    kurt             = kurt + 3,                        
+    kurt_stat        = sqrt(n) * (kurt - 3) / sqrt(24),
+    p_val_kurt_stat  = 2 * (1 - pnorm(abs(kurt_stat)))
+  ) %>%
   kbl(booktabs = TRUE)
 ```
-## 1(c)
+
+One of the most significant stylized facts observed is the Excess Kurtosis (leptokurtosis), all assets show kurtosis values significantly higher than 3.0, which is the threshold of a normal distribution. The highest value is 21.26 for BTC-USD, followed by KWEB and HOOD with 16.76 and 15.85, respectively. This indicates the presence of heavy tails, meaning that extreme price movements occur more frequently than in a normal distribution.
+
+*Skew*
+
+```{r table_skew, echo=FALSE}
+stock %>%
+  features(rtn, list(skew = timeSeries::colSkewness,
+                     n    = ~length(.))) %>%
+  mutate(
+    skew_stat        = sqrt(n) * skew / sqrt(6),
+    p_val_skew_stat  = 2 * (1 - pnorm(abs(skew_stat)))
+  ) %>%
+  kbl(booktabs = TRUE)
+```
+
+The assets also exhibit different degrees of asymmetry, shown by their skewness values. BTC-USD has a negative skewness of -1.103, indicating a longer left tail and a higher probability of large negative returns. In contrast, RWEB and RKLN show a positive skewness of 0.946 and 0.878, respectively.
+
+```{r Jarque-Bera tes, echo=FALSE}
+feat_normal <- function(x) {
+  n    <- length(x)
+  kurt <- sum(((x - mean(x)) / sd(x))^4) / n
+  skew <- sum(((x - mean(x)) / sd(x))^3) / n
+  JB      <- (n / 6) * (skew^2) + (n / 24) * ((kurt - 3)^2)
+  pval_JB <- 1 - pchisq(JB, df = 2)
+  c(kurt = kurt, skew = skew, JB = JB, pval_JB = pval_JB)
+}
+
+stock %>%
+  features(rtn, feat_normal) %>%
+  kbl(booktabs = TRUE)
+```
+
+Lastly, the Jarque-Bera test reinforces these findings, with a p-value of almost 0 for every asset. With this, we reject the null hypothesis of normality at any standard significance level.
+
+## 1.3 Autocorrelation and Dynamic Properties
+
+The dynamic properties of the returns were assessed through Autocorrelation Functions (ACF) and Partial Autocorrelation Functions (PACF), together with the Box-Ljung and Box-Pierce test.
+
+```{r ACF_rtn, echo=FALSE}
+stock %>%
+  update_tsibble(index = trading_day) %>%
+  ACF(rtn) %>%
+  autoplot() +
+  ggtitle("ACF for log returns") +
+  theme(legend.position = "none",
+        axis.text        = element_text(size = 6),
+        axis.title.x     = element_text(size = 6),
+        axis.title.y     = element_text(size = 6))
+```
+
+```{r PACF_rtn, echo=FALSE}
+stock %>%
+  update_tsibble(index = trading_day) %>%
+  PACF(rtn) %>%
+  autoplot() +
+  ggtitle("PACF for log returns") +
+  theme(legend.position = "none",
+        axis.text        = element_text(size = 6),
+        axis.title.x     = element_text(size = 6),
+        axis.title.y     = element_text(size = 6))
+```
+
+### Ljung-Box and Box-Pierce tests on log returns
+
+```{r box_tests_rtn, echo=FALSE}
+stock %>%
+  features(rtn, list(
+    ~ljung_box(., lag = 10),
+    ~box_pierce(., lag = 10)
+  )) %>%
+  kbl(booktabs = TRUE)
+```
+
+For Log Returns, both the Ljung-Box and Box-Pierce tests generally fail to reject the null hypothesis of the existence of serial correlation for several series, suggesting weak linear dependence. However, some assets such as Advanced Micro Devices Inc (AMD), Palantir Technologies Inc (PLTR) and NU Holdings Ltd. (NU), show statistically significant autocorrelation. This indicates that returns behave as a white noise process, providing partial support for market efficiency. Hence, while prices follow strong dynamics, returns have little predictable linear structure.
+
+```{r ACF_rtn^2, echo=FALSE}
+stock %>%
+  update_tsibble(index = trading_day) %>%
+  ACF(rtn^2) %>%
+  autoplot() +
+  ggtitle("ACF for squared log returns") +
+  theme(legend.position = "none",
+        axis.text    = element_text(size = 6),
+        axis.title.x = element_text(size = 6),
+        axis.title.y = element_text(size = 6))
+```
+
+```{r PACF_rtn^2, echo=FALSE}
+stock %>%
+  update_tsibble(index = trading_day) %>%
+  PACF(rtn^2) %>%
+  autoplot() +
+  ggtitle("PACF for squared log returns") +
+  theme(legend.position = "none",
+        axis.text    = element_text(size = 6),
+        axis.title.x = element_text(size = 6),
+        axis.title.y = element_text(size = 6))
+```
+
+### Ljung-Box and Box-Pierce tests on squared log returns
+
+```{r box_tests_rtn^2, echo=FALSE}
+stock %>%
+  features(rtn^2, list(
+    ~ljung_box(., lag = 10),
+    ~box_pierce(., lag = 10)
+  )) %>%
+  kbl(booktabs = TRUE)
+```
+
+In contrast, Squared Log Returns show strong and highly significant autocorrelation across all assets, the Ljung-Box statistics strongly reject the null hypothesis of independence in every case. The analysis of log returns confirm the existence of Volatility Clustering, meaning that periods of high volatility tend to be followed by further high volatility, while calm periods persist over time. This is reflected in the strong and persistent autocorrelation observed in the squared returns, which related directly to the conditional distribution of financial time series, specially that the variance is not constant over time. These findings suggest that the use of heteroskedatic models, such as ARCH and GARCH models, would be appropriate to capture the volatility dynamics of this dataset in the following parts of the report.
