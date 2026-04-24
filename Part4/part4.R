@@ -170,3 +170,86 @@ for (stk in stocks_with_arch) {
   dev.off()
 }
 
+#4d
+#change the stock here to find other results
+stk<-"AMD"
+
+#preparation
+  IXICrtn <- stock %>%
+    filter(symbol == stk) %>%
+    pull(rtn)
+  IXICrtn <- 100*IXICrtn
+  
+  #find id
+  idx <- which(names_stocks == stk)
+
+spec <- rugarch::ugarchspec(variance.model=list(model="sGARCH",
+                                                garchOrder=c(1,1)),
+                            mean.model=list(armaOrder=c(p[idx],q[idx]),
+                                            include.mean=TRUE))
+fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
+rugarch::ugarchforecast(fit,n.ahead = 1)
+rec_forc <- c()
+rtn_forc <- c()
+#change the number of a training set initial for how many days
+#with volatility and log return
+.init = 1100
+for (i in .init:(length(IXICrtn)-1)){
+  fit <- rugarch::ugarchfit(data = IXICrtn[1:i], spec = spec)
+  forc <- rugarch::ugarchforecast(fit,n.ahead = 1)
+  rec_forc[i-.init+1] <- forc@forecast$sigmaFor
+  rtn_forc[i-.init+1] <- forc@forecast$seriesFor
+}
+#generate forecasts for volatility
+print(tibble(index = 1:(length(rec_forc)),
+       rec_forc = rec_forc,
+       abs_IXICrtn = abs(IXICrtn[(.init+1):length(IXICrtn)])) %>%
+  as_tsibble(index = index) %>%
+  pivot_longer(-index) %>%
+  autoplot()+
+    labs(title = paste(stk, "- 1-step Forecast for Volatility,Garch(1,1)"))
+  )
+#generate forecasts for log returns
+print(tibble(index = 1:(length(rtn_forc)),
+             rtn_forc = rtn_forc,
+             IXICrtn = IXICrtn[(.init+1):length(IXICrtn)]) %>%
+        as_tsibble(index = index) %>%
+        pivot_longer(-index) %>%
+        autoplot()+
+        labs(title = paste(stk, "- 1-step Forecast for Log Returns,Garch(1,1)"))
+)
+
+
+#for Garch(2,1) 1 step
+spec <- rugarch::ugarchspec(variance.model=list(model="sGARCH",
+                                                garchOrder=c(1,1)),
+                            mean.model=list(armaOrder=c(p[idx],q[idx]),
+                                            include.mean=TRUE))
+fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
+rugarch::ugarchforecast(fit,n.ahead = 1)
+rec_forc <- c()
+rtn_forc <- c()
+for (i in .init:(length(IXICrtn)-1)){
+  fit <- rugarch::ugarchfit(data = IXICrtn[1:i], spec = spec)
+  forc <- rugarch::ugarchforecast(fit,n.ahead = 1)
+  rec_forc[i-.init+1] <- forc@forecast$sigmaFor
+  rtn_forc[i-.init+1] <- forc@forecast$seriesFor
+}
+#generate forecasts for volatility
+print(tibble(index = 1:(length(rec_forc)),
+             rec_forc = rec_forc,
+             abs_IXICrtn = abs(IXICrtn[(.init+1):length(IXICrtn)])) %>%
+        as_tsibble(index = index) %>%
+        pivot_longer(-index) %>%
+        autoplot()+
+        labs(title = paste(stk, "- 1-step Forecast for Volatility,Garch(2,1)"))
+)
+#generate forecasts for log returns
+print(tibble(index = 1:(length(rtn_forc)),
+             rtn_forc = rtn_forc,
+             IXICrtn = IXICrtn[(.init+1):length(IXICrtn)]) %>%
+        as_tsibble(index = index) %>%
+        pivot_longer(-index) %>%
+        autoplot()+
+        labs(title = paste(stk, "- 1-step Forecast for Log Returns,Garch(2,1)"))
+)
