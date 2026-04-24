@@ -77,10 +77,14 @@ print(arch_result2)
 arch_resultB <- arch_result1 %>%
   select(symbol, p, q, stat_arch_lm, pval_arch_lm, has_arch)
 print(arch_resultB)
-
 stocks_with_arch <- arch_resultB %>%
   filter(has_arch == TRUE) %>%
   pull(symbol)
+#create directory to save pictures
+if(!dir.exists("4b")) {
+  dir.create("4b")
+}
+
 for (stk in stocks_with_arch) {
   IXICrtn <- stock %>%
     filter(symbol == stk) %>%
@@ -90,14 +94,7 @@ for (stk in stocks_with_arch) {
   #find id
   idx <- which(names_stocks == stk)
   
-  #do Garch in norm
-  spec <-  rugarch::ugarchspec(variance.model=list(model="sGARCH", 
-                                                   garchOrder=c(1,0)),
-                               mean.model=list(armaOrder=c(p[idx],q[idx]), 
-                                               include.mean=TRUE))
-  
-  rugarch::ugarchfit(data = IXICrtn, spec = spec)
-  
+  #do Garch in norm(remember to state choosing GARCH(1,1) model)
   spec <-  rugarch::ugarchspec(variance.model=list(model="sGARCH", 
                                                    garchOrder=c(1,1)),
                                mean.model=list(armaOrder=c(p[idx],q[idx]), 
@@ -105,23 +102,35 @@ for (stk in stocks_with_arch) {
   
   rugarch::ugarchfit(data = IXICrtn, spec = spec)
   
-  spec <-  rugarch::ugarchspec(variance.model=list(model="sGARCH", 
-                                                   garchOrder=c(2,1)),
-                               mean.model=list(armaOrder=c(p[idx],q[idx]), 
-                                               include.mean=TRUE))
-  rugarch::ugarchfit(data = IXICrtn, spec = spec)
+  fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
   #diagnostic check
-  #Correlogram of standardized residuals in R
-  fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
-  fit@fit$z %>% ts() %>% as_tsibble() %>% 
-    ACF(lag_max = 20) %>% autoplot()
-  #Correlogram of squared standardized residuals
-  fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
-  fit@fit$z^2 %>% ts() %>% as_tsibble() %>% 
-    ACF(lag_max = 20) %>% autoplot()
+  #Correlogram of standardized residuals (ACF for fit)
+  png(filename = paste0("4b/", stk, "_ACF.png"), width = 800, height = 600)
+  print(fit@fit$z %>% ts() %>% as_tsibble() %>% 
+    ACF(lag_max = 20) %>% autoplot(
+      title = paste(stk, "- ACF of standardized residuals")
+    ))
+  dev.off()
+  #Correlogram of squared standardized residuals (ACF for fit^2)
+  png(filename = paste0("4b/", stk, "_ACF_sq.png"), width = 800, height = 600)
+  print(fit@fit$z^2 %>% ts() %>% as_tsibble() %>% 
+    ACF(lag_max = 20) %>% autoplot(
+      title = paste(stk, "- ACF of squared standardized residuals")
+    ))
+  dev.off()
+  #QQ plot for fit
+  png(filename = paste0("4b/", stk, "_QQ.png"), width = 800, height = 600)
+  qqnorm(fit@fit$z,main=paste(stk, "- Q-Q plot (normal distribution) for GARCH(1,1)"),col="red")
+  qqline(fit@fit$z,col="blue")
+  dev.off()
 }
 
 #4c for std model
+#create directory to save pictures
+if(!dir.exists("4c")) {
+  dir.create("4c")
+}
+
 for (stk in stocks_with_arch) {
   IXICrtn <- stock %>%
     filter(symbol == stk) %>%
@@ -131,39 +140,33 @@ for (stk in stocks_with_arch) {
   #find id
   idx <- which(names_stocks == stk)
   
-  #do Garch in std
-  spec <-  rugarch::ugarchspec(variance.model=list(model="sGARCH", 
-                                                   garchOrder=c(1,0)),
-                               mean.model=list(armaOrder=c(p[idx],q[idx]), 
-                                               include.mean=TRUE),
-                               distribution.model = "std")
-  
-  rugarch::ugarchfit(data = IXICrtn, spec = spec)
-  fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
-
-  qqnorm(fit@fit$z,main="",col="red")
-  qqline(fit@fit$z,col="blue")
-  
+  #do Garch in std(choose the same model GARCH(1,1) for t-distribution)
   spec <-  rugarch::ugarchspec(variance.model=list(model="sGARCH", 
                                                    garchOrder=c(1,1)),
                                mean.model=list(armaOrder=c(p[idx],q[idx]), 
                                                include.mean=TRUE),
                                distribution.model = "std")
   
-  rugarch::ugarchfit(data = IXICrtn, spec = spec)
-  fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
-
-  qqnorm(fit@fit$z,main="",col="red")
-  qqline(fit@fit$z,col="blue")
   
-  spec <-  rugarch::ugarchspec(variance.model=list(model="sGARCH", 
-                                                   garchOrder=c(2,1)),
-                               mean.model=list(armaOrder=c(p[idx],q[idx]), 
-                                               include.mean=TRUE),
-                               distribution.model = "std")
-  rugarch::ugarchfit(data = IXICrtn, spec = spec)
   fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
-
-  qqnorm(fit@fit$z,main="",col="red")
+  #Correlogram of standardized residuals (ACF for fit)
+  png(filename = paste0("4c/", stk, "_ACF_t.png"), width = 800, height = 600)
+  print(fit@fit$z %>% ts() %>% as_tsibble() %>% 
+    ACF(lag_max = 20) %>% autoplot(
+      title = paste(stk, "- ACF of standardized residuals (t-distribution)")
+    ))
+  dev.off()
+  #Correlogram of squared standardized residuals (ACF for fit^2)
+  png(filename = paste0("4c/", stk, "_ACF_sq_t.png"), width = 800, height = 600)
+  print(fit@fit$z^2 %>% ts() %>% as_tsibble() %>% 
+    ACF(lag_max = 20) %>% autoplot(
+      title = paste(stk, "- ACF of squared standardized residuals (t-distribution)")
+    ))
+  dev.off()
+  #QQ plot for fit
+  png(filename = paste0("4c/", stk, "_ACF_QQ_t.png"), width = 800, height = 600)
+  qqnorm(fit@fit$z,main=paste(stk, "- Q-Q plot (t-distribution) for GARCH(1,1)"),col="red")
   qqline(fit@fit$z,col="blue")
+  dev.off()
 }
+
