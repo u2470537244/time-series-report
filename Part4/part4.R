@@ -6,6 +6,7 @@ lapply(names(sessionInfo()$otherPkgs), function(pkgs)
 library(tidyverse)
 library(fpp3)
 library(tidyquant)
+library(kableExtra)
 #ARMA data in part 2
 p<- c(1,2,3,2,0,0,1,2,0,0,2,0,2,2,0,3)
 q<- c(0,0,0,2,0,0,0,2,0,3,3,0,3,2,0,1)
@@ -80,10 +81,6 @@ print(arch_resultB)
 stocks_with_arch <- arch_resultB %>%
   filter(has_arch == TRUE) %>%
   pull(symbol)
-#create directory to save pictures
-if(!dir.exists("4b")) {
-  dir.create("4b")
-}
 
 for (stk in stocks_with_arch) {
   IXICrtn <- stock %>%
@@ -105,31 +102,21 @@ for (stk in stocks_with_arch) {
   fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
   #diagnostic check
   #Correlogram of standardized residuals (ACF for fit)
-  png(filename = paste0("4b/", stk, "_ACF.png"), width = 800, height = 600)
   print(fit@fit$z %>% ts() %>% as_tsibble() %>% 
     ACF(lag_max = 20) %>% autoplot(
       title = paste(stk, "- ACF of standardized residuals")
     ))
-  dev.off()
   #Correlogram of squared standardized residuals (ACF for fit^2)
-  png(filename = paste0("4b/", stk, "_ACF_sq.png"), width = 800, height = 600)
   print(fit@fit$z^2 %>% ts() %>% as_tsibble() %>% 
     ACF(lag_max = 20) %>% autoplot(
       title = paste(stk, "- ACF of squared standardized residuals")
     ))
-  dev.off()
   #QQ plot for fit
-  png(filename = paste0("4b/", stk, "_QQ.png"), width = 800, height = 600)
   qqnorm(fit@fit$z,main=paste(stk, "- Q-Q plot (normal distribution) for GARCH(1,1)"),col="red")
   qqline(fit@fit$z,col="blue")
-  dev.off()
 }
 
 #4c for std model
-#create directory to save pictures
-if(!dir.exists("4c")) {
-  dir.create("4c")
-}
 
 for (stk in stocks_with_arch) {
   IXICrtn <- stock %>%
@@ -150,29 +137,24 @@ for (stk in stocks_with_arch) {
   
   fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
   #Correlogram of standardized residuals (ACF for fit)
-  png(filename = paste0("4c/", stk, "_ACF_t.png"), width = 800, height = 600)
   print(fit@fit$z %>% ts() %>% as_tsibble() %>% 
     ACF(lag_max = 20) %>% autoplot(
       title = paste(stk, "- ACF of standardized residuals (t-distribution)")
     ))
-  dev.off()
+
   #Correlogram of squared standardized residuals (ACF for fit^2)
-  png(filename = paste0("4c/", stk, "_ACF_sq_t.png"), width = 800, height = 600)
   print(fit@fit$z^2 %>% ts() %>% as_tsibble() %>% 
     ACF(lag_max = 20) %>% autoplot(
       title = paste(stk, "- ACF of squared standardized residuals (t-distribution)")
     ))
-  dev.off()
   #QQ plot for fit
-  png(filename = paste0("4c/", stk, "_ACF_QQ_t.png"), width = 800, height = 600)
   qqnorm(fit@fit$z,main=paste(stk, "- Q-Q plot (t-distribution) for GARCH(1,1)"),col="red")
   qqline(fit@fit$z,col="blue")
-  dev.off()
 }
 
 #4d
-#change the stock here to find other results
-stk<-"AMD"
+
+for(stk in stocks_with_arch){
 
 #preparation
   IXICrtn <- stock %>%
@@ -193,7 +175,7 @@ rec_forc <- c()
 rtn_forc <- c()
 #change the number of a training set initial for how many days
 #with volatility and log return
-.init = 1100
+.init = 1000
 for (i in .init:(length(IXICrtn)-1)){
   fit <- rugarch::ugarchfit(data = IXICrtn[1:i], spec = spec)
   forc <- rugarch::ugarchforecast(fit,n.ahead = 1)
@@ -222,7 +204,7 @@ print(tibble(index = 1:(length(rtn_forc)),
 
 #for Garch(2,1) 1 step
 spec <- rugarch::ugarchspec(variance.model=list(model="sGARCH",
-                                                garchOrder=c(1,1)),
+                                                garchOrder=c(2,1)),
                             mean.model=list(armaOrder=c(p[idx],q[idx]),
                                             include.mean=TRUE))
 fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
@@ -253,3 +235,111 @@ print(tibble(index = 1:(length(rtn_forc)),
         autoplot()+
         labs(title = paste(stk, "- 1-step Forecast for Log Returns,Garch(2,1)"))
 )
+}
+
+#4e
+#choose one stock as an example
+stk="AMD"
+  #preparation
+  IXICrtn <- stock %>%
+    filter(symbol == stk) %>%
+    pull(rtn)
+  IXICrtn <- 100*IXICrtn
+  
+  #find id
+  idx <- which(names_stocks == stk)
+
+#do prediction in two models for 1 or 2 steps
+  .init = 1000
+  
+spec11 <- rugarch::ugarchspec(variance.model=list(model="sGARCH",
+                                                garchOrder=c(1,1)),
+                            mean.model=list(armaOrder=c(p[idx],q[idx]),
+                                            include.mean=TRUE))
+fit11 <- rugarch::ugarchfit(data = IXICrtn[1:.init], spec = spec11)
+spec21 <- rugarch::ugarchspec(variance.model=list(model="sGARCH",
+                                                 garchOrder=c(2,1)),
+                             mean.model=list(armaOrder=c(p[idx],q[idx]),
+                                             include.mean=TRUE))
+fit21 <- rugarch::ugarchfit(data = IXICrtn[1:.init], spec = spec21)
+
+step2_ga11 <- rugarch::ugarchforecast(fit11,n.ahead = 2)
+step2_ga21 <- rugarch::ugarchforecast(fit21,n.ahead = 2)
+
+print(tibble(
+  Model = c("GARCH(1,1)","GARCH(1,1)", "GARCH(2,1)","GARCH(2,1)"),
+  Step_num = c("1-step", "2-step","1-step", "2-step"),
+  Return = c(step2_ga11@forecast$seriesFor[1], step2_ga11@forecast$seriesFor[2],
+             step2_ga21@forecast$seriesFor[1], step2_ga21@forecast$seriesFor[2]),
+  Volatility = c(step2_ga11@forecast$sigmaFor[1], step2_ga11@forecast$sigmaFor[2],
+                 step2_ga21@forecast$sigmaFor[1], step2_ga21@forecast$sigmaFor[2])
+)%>%
+  kbl(booktabs = TRUE,
+      caption = paste("1-step and 2-step forecasts for ",stk," (GARCH(1,1) vs GARCH(2,1))")
+      )
+)
+
+#4f
+results_4f <- tibble()
+for (stk in stocks_with_arch){
+  IXICrtn <- stock %>%
+    filter(symbol == stk) %>%
+    pull(rtn)
+  IXICrtn <- 100*IXICrtn
+  
+  #find id
+  idx <- which(names_stocks == stk)
+  
+  #check if it's different from zero
+  spec <-  rugarch::ugarchspec(variance.model=list(model="sGARCH", 
+                                                   garchOrder=c(1,1)),
+                               mean.model=list(armaOrder=c(p[idx],q[idx]), 
+                                               include.mean=TRUE))
+  
+  fit <- rugarch::ugarchfit(data = IXICrtn, spec = spec)
+  coef_table <- fit@fit$matcoef
+  mu_pvalue <- coef_table["mu", 4]
+  statistically_difference <- mu_pvalue < 0.05
+  
+  #check leverage effects
+  spec_e <-  rugarch::ugarchspec(variance.model=list(model="eGARCH", 
+                                                   garchOrder=c(1,1)),
+                               mean.model=list(armaOrder=c(p[idx],q[idx]), 
+                                               include.mean=TRUE))
+  
+  fit_e <- rugarch::ugarchfit(data = IXICrtn, spec = spec_e)
+  gamma1_p <- fit_e@fit$matcoef["gamma1", 4]
+  if(is.null(gamma1_p))
+    next  #skip which doesnot have gamma1
+  gamma1_val <- fit_e@fit$matcoef["gamma1", 1]
+  leverage_effect <- gamma1_p < 0.05 & gamma1_val < 0
+  
+  #check risk premia
+  spec_m <-  rugarch::ugarchspec(variance.model=list(model="sGARCH", 
+                                                   garchOrder=c(1,1)),
+                               mean.model=list(armaOrder=c(p[idx],q[idx]),
+                                               include.mean=TRUE,
+                                               archm=TRUE))
+  
+  fit_m <- rugarch::ugarchfit(data = IXICrtn, spec = spec_m)
+  archm_p <- fit_m@fit$matcoef["archm", 4]
+  has_risk_premia <- archm_p < 0.05
+  #build table
+  results_4f <- bind_rows(results_4f, tibble(
+    Stock = stk,
+    Mean_p = round(mu_pvalue, 4),
+    Stat_diff = statistically_difference,
+
+    Leverage_p = round(gamma1_p, 4),
+    Leverage_value = round(gamma1_val, 4),
+    has_Leverage = leverage_effect,
+
+    RiskPremia_p = round(archm_p, 4),
+    has_RiskPremia = has_risk_premia,
+  ))
+  
+}
+
+print(results_4f %>%
+  kbl(caption = "Table 4f: Hypothesis Tests for Mean, Leverage, and Risk Premia"))
+#only have 7 rows because other series don't converge in e-Garch,
