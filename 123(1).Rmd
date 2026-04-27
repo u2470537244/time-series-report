@@ -1,0 +1,41 @@
+# 1. Time Series Dynamics, Returns and Stylized Facts
+
+This section of the report discusses the dynamics, statistical properties and stylized facts of the selected financial assets based on the results computed for the period from January 2019 to December 2024.
+
+## 1.1 Dynamics of Financial Time Series
+
+The dataset consists of daily closing prices for a diversified set of assets, including cryptocurrencies, technology equities, ETFs and commodities. This data was obtained from Yahoo Finance and adjusted for stock splits and dividend payments.
+
+Looking at these price series, we notice long-term upward trends that are frequently interrupted by sharp declines and periods of high volatility. This higher volatility is notably concentrated during specific periods of global market stress, specifically the 2020 pandemic induced crash and during 2022 and 2023 with the monetary tightening cycles. The behaviour of these series is driven by macroeconomic events, such as the Federal Reserve interest rate decisions, inflation uncertainties and GDP releases. Other news related to the specific assets, such as quarterly earnings announcements and regulatory changes have significant impacts in each assets individual price trajectories.
+
+Additionally, high-growth technology stocks and speculative assets, for example, Palantir Technologies (PLTR), Archer Aviation Inc (ACHR) and cryptocurrencies (BTC-USD) show stronger price fluctuations when compared with stable stocks such as gold (GLD) and NextEra Energy (NEE). Cryptocurrency series show a strong ups-and-downs dynamic, which reflects speculative trading behaviour and sensitivity to liquidity conditions.
+
+Overall, financial prices exhibit unstable behaviour characterized by trends, jumps and clustering of volatility, which increases the interest for the analysis of returns instead of prices.
+
+## 1.2 Statistical Analysis and Stylized Facts of Log Returns
+
+The log returns were computed and analyzed as first differences of logarithmic prices, in order to identify common stylized facts in financial time series. The summary statistics for all assets reveal a significant departure from the normal distribution, displaying no visible deterministic trend.
+
+*Mean and Volatility*
+
+The estimated mean returns are close to zero for most assets, which is consistent with the weak-form Efficient Market Hypothesis, suggesting limited predictability of daily returns. However, volatility differs significantly across assets; cryptocurrencies (SOL-USD) and more speculative growth stocks (IONQ) present the highest standard deviations, while gold (GDL) and utility stocks (NEE) are more stable so they show the lowest volatility.
+
+{r table_mean, echo=FALSE} **insert table**
+
+*Distributional Properties*
+
+One of the most significant stylized facts observed is the Excess Kurtosis (leptokurtosis), all assets show kurtosis values significantly higher than 3.0, which is the threshold of a normal distribution. The highest value is 21.26 for BTC-USD, followed by KWEB and HOOD with 16.76 and 15.85, respectively. This indicates the presence of heavy tails, meaning that extreme price movements occur more frequently than in a normal distribution.
+
+The assets also exhibit different degrees of asymmetry, shown by their skewness values. BTC-USD has a negative skewness of -1.103, indicating a longer left tail and a higher probability of large negative returns. In contrast, RWEB and RKLN show a positive skewness of 0.946 and 0.878, respectively.
+
+Lastly, the Jarque-Bera test reinforces these findings, with a p-value of almost 0 for every asset. With this, we reject the null hypothesis of normality at any standard significance level.
+
+**insert table of the 3 compared**
+
+## 1.3 Autocorrelation and Dynamic Properties
+
+The dynamic properties of the returns were assessed through Autocorrelation Functions (ACF) and Partial Autocorrelation Functions (PACF), together with the Box-Ljung and Box-Pierce test.
+
+For Log Returns, both the Ljung-Box and Box-Pierce tests generally fail to reject the null hypothesis of the existence of serial correlation for several series, suggesting weak linear dependence. However, some assets such as Advanced Micro Devices Inc (AMD), Palantir Technologies Inc (PLTR) and NU Holdings Ltd. (NU), show statistically significant autocorrelation. This indicates that returns behave as a white noise process, providing partial support for market efficiency. Hence, while prices follow strong dynamics, returns have little predictable linear structure.
+
+In contrast, Squared Log Returns show strong and highly significant autocorrelation across all assets, the Ljung-Box statistics strongly reject the null hypothesis of independence in every case. The analysis of log returns confirm the existence of Volatility Clustering, meaning that periods of high volatility tend to be followed by further high volatility, while calm periods persist over time. This is reflected in the strong and persistent autocorrelation observed in the squared returns, which related directly to the conditional distribution of financial time series, specially that the variance is not constant over time. These findings suggest that the use of heteroskedatic models, such as ARCH and GARCH models, would be appropriate to capture the volatility dynamics of this dataset in the following parts of the report.
