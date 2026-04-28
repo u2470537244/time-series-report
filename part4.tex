@@ -1,0 +1,245 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\documentclass[
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={part4-vera},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{part4-vera}
+\author{}
+\date{\vspace{-2.5em}2026-04-27}
+
+\begin{document}
+\maketitle
+
+\#4. Volatility Model with ARMA-GARCH \#\#4.1 Sample Period and Data
+Description Following the project instructions, the analysis focuses on
+the most recent market dynamics. We consider daily data from January
+2020 to December 2024, corresponding to the last 5 years. This period
+captures several relevant market regimes, including the COVID-19
+financial shock, the post-pandemic recovery, the monetary tightening
+cycles and the increased volatility in cryptocurrency and technology
+sectors. Using five years of data provides us with a balance between
+enough observations for an accurate estimation of conditional volatility
+models and structural stability to avoid outdated market behaviour. Log
+returns were computed as \[
+r_t = \log(P_t) - \log(P_{t-1})
+\] where Pt is the daily closing prices.
+
+\#\#4.2 ARCH Effects \#\#\# Analysis of the ARMA Residual The ARMA(p,q)
+model selected was estimated and the residuals were extracted, for each
+time series and we tested for conditional heteroskedasticity using the
+ARCH-LM test with 10 lags, to check whether volatility modelling is
+required. Under the null hypothesis of no ARCH effects, the statistic
+follows a chi-squared distribution with 10 degrees of freedom. The
+results indicate that all assets exhibit a p-value \textless{} 0.05,
+which indicates statistically significant ARCH effects, implying that
+there is volatility clustering, conditional variance that varies over
+time and inadequacy of constant-variance ARMA models.
+
+\subsubsection{Diagnostics of the Squared
+Residuals}\label{diagnostics-of-the-squared-residuals}
+
+To analyze the squared residuals we used the Box-Pierce test on squared
+residuals, revealing serial dependence and the autocorrelation in
+squared residuals confirms that there is a persistence in volatility.
+These results are consistent with the stylized facts of the financial
+returns, such as, volatility clustering, heavy tails and the persistence
+of shocks.
+
+\subsubsection{Proposed ARMA-GARCH
+Models}\label{proposed-arma-garch-models}
+
+We propose modelling the log returns using ARMA(p,q) - GARCH(1,1). The
+GARCH(1,1) model was selected to model the extended persistence of
+volatility because it's a more parsimonious model to describe volatility
+properties and because time series models should be as simple as
+possible so it wouldn't be worth it to use a higher-order model. The
+conditional variance is described by the GARCH as depending on both
+lagged squared errors and conditional variances, with the equation: \[
+\sigma_t^2 = \omega + \alpha \varepsilon_{t-1}^2 + \beta \sigma_{t-1}^2
+\]
+
+\subsection{4.3 Adequacy of the model and
+diagnostics}\label{adequacy-of-the-model-and-diagnostics}
+
+After estimating the models with normally distributed errors, we
+performed three diagnostic tests:
+
+\#\#\#Standardized Residual ACF The autocorrelation functions of the
+standardized residuals show no significant remaining serial dependence,
+which indicates that there is an adequate mean specification.
+Significant spikes in the graph would indicate that the ARMA component
+had not fully captured the mean dynamics.
+
+GRAPH
+
+\#\#\#Squared Standardized Residual ACF The absence of significant
+autocorrelation shows that conditional heteroskedasticity has been
+successfully captured.
+
+GRAPH
+
+\#\#\#Normal Q-Q Plots These plots reveal deviations in the tails for
+many assets such as BTC-USD, SOL-USD and RKLB, suggesting excess
+kurtosis compared to the Gaussian distribution.
+
+GRAPH
+
+\#\#\#Model Selection Overall, the ARMA-GARCH(1,1) model is the selected
+under normality, since it captures the return dynamics, volatility
+clustering and the persistence of conditional variance.
+
+\subsection{4.3 ARMA-GARCH with Student-t
+Errors}\label{arma-garch-with-student-t-errors}
+
+We re-estimated the models assuming a Student-t distribution to account
+for the heavy tails observed in the Q-Q plots. We obtained an
+improvement in Q-Q plot alignment and reduced tail deviations, as for
+the ACF diagnostics, they remain clean, confirming that serial
+correlation and ARCH effects continue adequate. The Student-t
+distribution accommodates extreme observations more effectively, which
+are frequent in cryptocurrencies and the growth stocks included in the
+sample.
+
+\subsection{4.4 Forecasting Returns and
+Volatility}\label{forecasting-returns-and-volatility}
+
+\#\#\#Training and Test Sets Each time series was divided into a
+training set with the first 1000 observations and a test set with the
+remaining ones. The rolling one-step-ahead forecasts were generated
+using GARCH(1,1) which is the parsimonious benchmark discussed
+previously and GARCH(2,1) which is an extended specification that allows
+the variance to depend on two lagged squared innovations, capturing more
+complex volatility dynamics. The forecasts were produced for the
+conditional mean (log returns) and the conditional volatility.
+
+\#\#\#Volatility Forecasts With this tests, we discovered that both
+GARCH(1,1) and GARCH(2,1) produce smooth volatility forecasts that are
+able to capture the clustering of large shocks, during high-volatility
+episodes, both models appropriately increase their volatility forecasts
+with a short lag, GARCH(2,1) does not systematically outperform
+GARCH(1,1) in terms of volatility tracking since for most assets both
+forecasts are very similar and lastly, we discovered that cryptocurrency
+assets exhibit the most volatile forecast path, with some large spikes
+that neither model fully accounts for.
+
+\#\#\#Log Return Forecasts The log return forecasts are, as expected,
+close to the unconditional mean for most periods. The ARMA mean
+component provides modest short-run predictability for assets with
+non-zero parameters, but the returns are controlled by unpredictable
+shocks.
+
+Overall, GARCH(1,1) is preferred for parsimony because it provides
+stable forecasts, however GARCH(2,1) might be used occasionally since it
+captures longer volatility persistence but adds complexity.
+
+\subsection{4.5 1st and 2nd Strep
+Forecasts}\label{st-and-2nd-strep-forecasts}
+
+We illustrated the multi-step forecast by selecting AMD (Advanced Micro
+Devices), which has the ARMA(3,0)-GARCH(1,1)/GARCH(2/1) specification.
+The two-step forecasts were obtained from both GARCH specifications and
+computed as:
+
+\#\#\#Step 1 Forecast ???? don't get it
+
+\#\#\#Step 2 Forecast also don't get it
+
+The table presented reports the 1st and 2nd step forecasts for the
+predicted returns and volatility.
+
+insert table
+
+Results show convergence of the volatility forecasts into the long-run
+variance.
+
+\subsection{4.6 Economic Interpretation Tests (mean, leverage and risk
+premia)}\label{economic-interpretation-tests-mean-leverage-and-risk-premia}
+
+We did three disticnt hypothesis tests for each asset:
+
+\subsubsection{1. Mean of Log Returns}\label{mean-of-log-returns}
+
+Our null hypothesis was of mean zero and the majority of the assets show
+insignificant mean parameters, which indicates that the average returns
+are not statistically different from zero. This result is consistent
+with the weak-form efficient hypothesis.
+
+\#\#\#2. Leverage Effects To test the leverage effects, we used an
+EGARCH(1,1) model where a significant negative asymmetry parameter
+indicates that negative shocks increase volatility, more than positive
+shocks. It does not converge for all assets, suggesting that asymmetric
+volatility is asset-specific, for example, cryptocurrencies tend to show
+less consistent leverage since they are a very speculative and sentiment
+driven stocks.
+
+\#\#\#3. Risk Premia For the risk premia, we used an GARCH-in-mean
+specification, with the null hypothesis of no relationship between
+expected return and risk. Only some assets showed significant
+ARCH-in-mean coefficients, which implies that there is a weak evidence
+that higher conditional volatility leads to higher expected returns.
+
+Overall, our analysis confirms that the key stylized facts of financial
+markets are the strong volatility clustering, the heavy-tailed return
+distributions and the persistent conditional variance.
+
+\end{document}
