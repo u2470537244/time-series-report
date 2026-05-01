@@ -22,9 +22,9 @@ stock <- tidyquant::tq_get(
   c("BTC-USD", "HOOD", "AMD",  "PLTR", "RKLB",
     "IONQ",    "ACHR", "NU",   "SE",   "KWEB",
     "GLD",     "CCJ",  "CRSP", "NEE",  "MELI", "SOL-USD"),
-  get  = "stock.prices",
+  get =  "stock.prices",
   from = "2019-01-01",
-  to   = "2024-12-31"
+  to = "2024-12-31"
 ) %>%
   mutate(date = as_date(date)) %>%
   as_tsibble(index = date, key = symbol) %>%
@@ -52,19 +52,18 @@ stock %>%
 stock %>%
   features(rtn, list(
     mean = ~mean(., na.rm = TRUE),
-    sd   = ~sd(.,   na.rm = TRUE),
-    n    = ~length(.)
+    sd = ~sd(.,   na.rm = TRUE),
+    n = ~length(.)
   )) %>%
   kbl(booktabs = TRUE)
 
 # Skewness with test statistic
 
 stock %>%
-  features(rtn, list(skew = timeSeries::colSkewness,
-                     n    = ~length(.))) %>%
+  features(rtn, list(skew = timeSeries::colSkewness, n = ~length(.))) %>%
   mutate(
-    skew_stat        = sqrt(n) * skew / sqrt(6),
-    p_val_skew_stat  = 2 * (1 - pnorm(abs(skew_stat)))
+    skew_stat = sqrt(n) * skew / sqrt(6),
+    p_val_skew_stat = 2 * (1 - pnorm(abs(skew_stat)))
   ) %>%
   kbl(booktabs = TRUE)
 
@@ -74,19 +73,19 @@ stock %>%
   features(rtn, list(kurt = timeSeries::colKurtosis,
                      n    = ~length(.))) %>%
   mutate(
-    kurt             = kurt + 3,                        
-    kurt_stat        = sqrt(n) * (kurt - 3) / sqrt(24),
-    p_val_kurt_stat  = 2 * (1 - pnorm(abs(kurt_stat)))
+    kurt = kurt + 3,                        
+    kurt_stat = sqrt(n) * (kurt - 3) / sqrt(24),
+    p_val_kurt_stat = 2 * (1 - pnorm(abs(kurt_stat)))
   ) %>%
   kbl(booktabs = TRUE)
 
 # Jarque-Bera tes
 # Joint test of H0: skew = 0 AND kurt = 3
 feat_normal <- function(x) {
-  n    <- length(x)
+  n <- length(x)
   kurt <- sum(((x - mean(x)) / sd(x))^4) / n
   skew <- sum(((x - mean(x)) / sd(x))^3) / n
-  JB      <- (n / 6) * (skew^2) + (n / 24) * ((kurt - 3)^2)
+  JB <- (n / 6) * (skew^2) + (n / 24) * ((kurt - 3)^2)
   pval_JB <- 1 - pchisq(JB, df = 2)
   c(kurt = kurt, skew = skew, JB = JB, pval_JB = pval_JB)
 }
@@ -103,9 +102,9 @@ stock %>%
   autoplot() +
   ggtitle("ACF for log returns") +
   theme(legend.position = "none",
-        axis.text        = element_text(size = 6),
-        axis.title.x     = element_text(size = 6),
-        axis.title.y     = element_text(size = 6))
+        axis.text = element_text(size = 6),
+        axis.title.x = element_text(size = 6),
+        axis.title.y = element_text(size = 6))
 
   # PACF of log returns
 stock %>%
@@ -114,9 +113,9 @@ stock %>%
   autoplot() +
   ggtitle("PACF for log returns") +
   theme(legend.position = "none",
-        axis.text        = element_text(size = 6),
-        axis.title.x     = element_text(size = 6),
-        axis.title.y     = element_text(size = 6))
+        axis.text = element_text(size = 6),
+        axis.title.x = element_text(size = 6),
+        axis.title.y = element_text(size = 6))
 
   # Ljung-Box and Box-Pierce tests on log returns
 stock %>%
@@ -134,7 +133,7 @@ stock %>%
   autoplot() +
   ggtitle("ACF for squared log returns") +
   theme(legend.position = "none",
-        axis.text    = element_text(size = 6),
+        axis.text = element_text(size = 6),
         axis.title.x = element_text(size = 6),
         axis.title.y = element_text(size = 6))
 
@@ -145,7 +144,7 @@ stock %>%
   autoplot() +
   ggtitle("PACF for squared log returns") +
   theme(legend.position = "none",
-        axis.text    = element_text(size = 6),
+        axis.text = element_text(size = 6),
         axis.title.x = element_text(size = 6),
         axis.title.y = element_text(size = 6))
 
