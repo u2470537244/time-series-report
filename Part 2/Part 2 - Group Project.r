@@ -11,9 +11,9 @@ library(dplyr)
 # In order to start we need to import the data and compute the log returns
 
 tickers <- c(
-  "BTC-USD", "HOOD", "AMD",  "PLTR", "RKLB",
-  "IONQ",    "ACHR", "NU",   "SE",   "KWEB",
-  "GLD",     "CCJ",  "CRSP", "NEE",  "MELI", "SOL-USD"
+  "BTC-USD", "HOOD", "AMD","PLTR", "RKLB",
+  "IONQ", "ACHR", "NU", "SE", "KWEB",
+  "GLD", "CCJ", "CRSP", "NEE", "MELI", "SOL-USD"
   )
 
 prices <- tq_get(tickers, from = "2015-01-01", to = "2024-12-31")
@@ -33,7 +33,6 @@ returns <- prices %>%
 #For example, Hood had its IPO in 2021, or cryptos also trade during the weekend
 
 # DESCRIPTIVE STATISTICS
-
 desc_stats <- returns %>%
   group_by(symbol) %>%
   summarise(

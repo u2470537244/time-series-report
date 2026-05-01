@@ -13,9 +13,9 @@ library(rugarch)
 
 p<- c(1,2,3,2,0,0,1,2,0,0,2,0,2,2,0,3)
 q<- c(0,0,0,2,0,0,0,2,0,3,3,0,3,2,0,1)
-names_stocks<- c("BTC-USD", "HOOD", "AMD",  "PLTR", "RKLB",
-                 "IONQ",    "ACHR", "NU",   "SE",   "KWEB",
-                 "GLD",     "CCJ",  "CRSP", "NEE",  "MELI", "SOL-USD")
+names_stocks<- c("BTC-USD", "HOOD", "AMD","PLTR", "RKLB",
+                 "IONQ", "ACHR", "NU", "SE","KWEB",
+                 "GLD", "CCJ",  "CRSP", "NEE", "MELI", "SOL-USD")
 num_stocks<-length(names_stocks)
 pq_table <- tibble(symbol = names_stocks, p = p, q = q)
 
@@ -88,7 +88,7 @@ for (stk in stocks_with_arch) {
   
   spec <- ugarchspec(
     variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
-    mean.model     = list(armaOrder = c(p[idx], q[idx]),
+    mean.model = list(armaOrder = c(p[idx], q[idx]),
                           include.mean = TRUE),
     distribution.model = "norm"
   )
@@ -191,8 +191,8 @@ for (stk in stocks_with_arch) {
           pivot_longer(-index) %>%
           autoplot() + labs(title = paste(stk, "1-step Volatility Forecast, GARCH(1,1)")))
   
-  print(tibble(index    = seq_along(fc11$rtn),
-               rtn_fc   = fc11$rtn,
+  print(tibble(index = seq_along(fc11$rtn),
+               rtn_fc = fc11$rtn,
                realised = realised) %>%
           as_tsibble(index = index) %>%
           pivot_longer(-index) %>%

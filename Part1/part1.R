@@ -19,9 +19,9 @@ library(kableExtra)
 
 #define stocks
 stock <- tidyquant::tq_get(
-  c("BTC-USD", "HOOD", "AMD",  "PLTR", "RKLB",
-    "IONQ",    "ACHR", "NU",   "SE",   "KWEB",
-    "GLD",     "CCJ",  "CRSP", "NEE",  "MELI", "SOL-USD"),
+  c("BTC-USD","HOOD","AMD", "PLTR", "RKLB",
+    "IONQ","ACHR", "NU", "SE","KWEB",
+    "GLD","CCJ","CRSP", "NEE","MELI", "SOL-USD"),
   get =  "stock.prices",
   from = "2019-01-01",
   to = "2024-12-31"
@@ -71,7 +71,7 @@ stock %>%
 
 stock %>%
   features(rtn, list(kurt = timeSeries::colKurtosis,
-                     n    = ~length(.))) %>%
+                     n = ~length(.))) %>%
   mutate(
     kurt = kurt + 3,                        
     kurt_stat = sqrt(n) * (kurt - 3) / sqrt(24),
